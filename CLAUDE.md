@@ -33,28 +33,36 @@ Requires Python 3.12. PySpark 3.5.2 is the primary processing engine — a local
 
 ## Architecture
 
+The project follows a **modules + thin notebooks** pattern. Core logic lives in `scripts/`; notebooks are a narrative layer that imports + orchestrates.
+
 ```
 scripts/
-  download.py       # Downloads raw data from NYC TLC
-  functions.py      # Reusable utilities: IQR outlier removal, standardization helpers
+  download.py       # CLI: downloads raw FHVHV Parquet from NYC TLC
+  spark.py          # Spark session factory + curated-data StructType schema
+  io_utils.py       # load_raw_fhvhv, load_weather, load_holidays, load_curated, write_curated
+  preprocessing.py  # Cleaning, feature engineering, weather join, holiday flag
+  modelling.py      # Feature assembly, temporal split, train_linear_regression, evaluate
+  visualisation.py  # Folium choropleths + matplotlib/seaborn plots
+  functions.py      # IQR outlier rule, z-score standardisation, shape/null helpers
 notebook/
-  preprocess.ipynb  # Step 2: cleaning & feature engineering
-  analysis.ipynb    # Step 3: EDA & geospatial maps
-  model.ipynb       # Step 4: Linear regression with PySpark ML
+  preprocess.ipynb  # Step 2: orchestrates preprocessing.py
+  analysis.ipynb    # Step 3: builds maps + plots via visualisation.py
+  model.ipynb       # Step 4: trains + evaluates models via modelling.py
 data/
   raw/              # Raw FHVHV Parquet files (gitignored)
-  curated/          # Processed Parquet output from preprocessing
-  raw_csv/          # External reference data (taxi zone shapefiles, weather)
-  results/          # Model output artifacts
-plots/              # Generated visualizations (PNG + interactive HTML)
+  curated/          # Month-partitioned Parquet output from preprocessing
+  raw_csv/          # External reference data (taxi zone shapefiles, weather, holidays)
+  results/          # Model prediction outputs
+plots/              # Generated visualisations (PNG + interactive folium HTML)
 report/             # Final PDF report
 ```
 
-**Data flow:** `download.py` → `data/raw/` → `preprocess.ipynb` → `data/curated/` → `analysis.ipynb` + `model.ipynb` → `plots/` + `data/results/`
+**Data flow:** `download.py` → `data/raw/` → `preprocess.ipynb` → `data/curated/chunk_*.parquet` → `analysis.ipynb` + `model.ipynb` → `plots/` + `data/results/`
 
 ## Key Technical Notes
 
-- **Uber = HV0003, Lyft = HV0005** — these are the license type filters applied in preprocessing.
-- Utility functions in `scripts/functions.py` (IQR removal, standardization) are imported directly into the notebooks via `sys.path` — keep the module importable from notebook context.
-- PySpark sessions are created locally inside each notebook; no external cluster required.
-- `analysis.ipynb` is large (~8.5 MB) due to embedded cell outputs — avoid re-running all cells unnecessarily.
+- **Uber = HV0003, Lyft = HV0005** — these are the license-type filters (see `FHVHV_LICENSES` in `preprocessing.py`).
+- Each notebook prepends `sys.path.append('../scripts')` and imports directly (e.g. `from preprocessing import drop_unused_columns`). The modules import each other the same way (`from functions import apply_iqr_rule`), so the sys.path manipulation in the notebook is sufficient for all transitive imports.
+- The curated Parquet schema is canonicalised in `spark.CURATED_SCHEMA` and loaded via `io_utils.load_curated()` — required because the VectorUDT columns (`license_vec`, `day_vec`, etc.) don't survive a schema-inferring re-read.
+- PySpark sessions are created locally inside each notebook via `get_spark()`; no external cluster required.
+- `.gitattributes` marks `plots/*.html` as `linguist-generated=true` so the folium-generated maps don't dominate GitHub's language stats.

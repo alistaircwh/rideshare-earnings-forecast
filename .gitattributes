@@ -1,0 +1,3 @@
+# Folium-generated interactive maps are data artifacts, not source code.
+# Hiding them stops GitHub Linguist from labelling this repo as "HTML".
+plots/*.html linguist-generated=true
