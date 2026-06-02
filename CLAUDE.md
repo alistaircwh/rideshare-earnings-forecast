@@ -23,7 +23,7 @@ Requires Python 3.12. PySpark 3.5.2 is the primary processing engine — a local
    Fetches NYC TLC FHVHV Parquet files into `data/raw/`.
 
 2. **Preprocess** — run `notebook/preprocess.ipynb`
-   Cleans data, one-hot encodes categorical features (license/day/hour/location/precipitation), standardizes numerics, applies IQR outlier removal (domain-aware: only for groups with N > 100). Outputs curated Parquet files to `data/curated/`.
+   Cleans data, one-hot encodes categorical features (license/day/hour/location/precipitation), standardizes numerics, and applies a domain-aware IQR outlier rule with an N-scaled threshold `(√log(N) − 0.5) × IQR` per column on the FHVHV trips (weather columns are intentionally not filtered). Outputs curated Parquet files to `data/curated/`.
 
 3. **Analysis** — run `notebook/analysis.ipynb`
    EDA and geospatial visualizations (geopandas + folium). Outputs HTML maps and PNG plots to `plots/`.
